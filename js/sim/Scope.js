@@ -23,6 +23,7 @@ export class Scope {
     this.radius = opts.radius ?? 0.45;     // 9 mm insertion tube
     this.bendLen = opts.bendLen ?? 3.2;    // cm of bending section
     this.stiffness = opts.stiffness ?? 16; // how strongly the tube rides the outer curvature
+    this.rollOffset = opts.rollOffset ?? 0; // deg; scope roll at insertion (image orientation)
     this.reset();
   }
 
@@ -132,8 +133,10 @@ export class Scope {
     this.base.fwd.subVectors(_b, _a).normalize();
     m.normalAt(sb, _n);
     _n.addScaledVector(this.base.fwd, -_n.dot(this.base.fwd)).normalize();
-    // torque rotates the whole scope about its own axis (clockwise from operator's view = +)
-    _q.setFromAxisAngle(this.base.fwd, -this.torque * DEG);
+    // torque rotates the whole scope about its own axis (clockwise from operator's view = +).
+    // A positive rotation about the forward axis is clockwise when looking down the scope.
+    // rollOffset = how the scope is held at insertion (calibrated by Orientation.js).
+    _q.setFromAxisAngle(this.base.fwd, (this.torque + this.rollOffset) * DEG);
     this.base.up.copy(_n).applyQuaternion(_q);
     _r.crossVectors(this.base.fwd, this.base.up); // scope "right"
 

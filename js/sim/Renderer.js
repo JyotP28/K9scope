@@ -48,6 +48,9 @@ export class EndoRenderer {
     this.guide.scene.add(this.scopeLine);
     this.tipDot = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
     this.guide.scene.add(this.tipDot);
+    this.upStick = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffe066 }));
+    this.upStick.frustumCulled = false;
+    this.guide.scene.add(this.upStick);
 
     // dark scope shaft (visible when retroflexed)
     this.shaftMat = new THREE.MeshPhysicalMaterial({ color: 0x2c3236, roughness: 0.3, metalness: 0.0, clearcoat: 1, clearcoatRoughness: 0.1 });
@@ -110,10 +113,38 @@ export class EndoRenderer {
     geo.computeBoundingSphere();
     const bs = geo.boundingSphere;
     this.guide.center = bs.center.clone();
-    this.guide.camera.position.copy(bs.center).add(new THREE.Vector3(-bs.radius * 0.4, -bs.radius * 2.7, bs.radius * 0.2));
-    this.guide.camera.up.set(0, 0, 1);
-    this.guide.camera.lookAt(bs.center);
+    this.guide.radius = bs.radius;
+    this.setGuideView(this.guide.viewName || 'vd');
   }
+
+  // Guide views, in patient axes (axes = {dorsal, left, cranial} unit vectors):
+  //  'lateral' = looking at the dog's RIGHT side, dorsal up, cranial to the right
+  //              (what you see standing over a dog in left lateral recumbency)
+  //  'vd'      = ventrodorsal: looking from ventral, cranial up, dog's left on viewer's right
+  setGuideView(name, axes = this.axes) {
+    if (!axes || !this.guide.center) { this.guide.viewName = name; return; }
+    const g = this.guide, R = g.radius;
+    const D = axes.dorsal, Lf = axes.left, Cr = axes.cranial;
+    g.viewName = name;
+    const cam = g.camera;
+    if (name === 'vd') {
+      cam.position.copy(g.center).addScaledVector(D, -R * 2.6);
+      cam.up.copy(Cr);
+    } else {
+      cam.position.copy(g.center).addScaledVector(Lf, -R * 2.6);
+      cam.up.copy(D);
+    }
+    cam.lookAt(g.center);
+    cam.updateMatrixWorld();
+  }
+
+  // project a world point into the guide inset (CSS px, relative to the inset's top-left)
+  guideProject(p) {
+    const v = p.clone().project(this.guide.camera);
+    const gs = this.guideSize();
+    return { x: (v.x * 0.5 + 0.5) * gs, y: (-v.y * 0.5 + 0.5) * gs, behind: v.z > 1 };
+  }
+  guideSize() { return Math.round(Math.min(220, window.innerHeight * 0.27)); }
 
   _makePost() {
     const mat = new THREE.ShaderMaterial({
@@ -247,8 +278,10 @@ export class EndoRenderer {
       this.scopeLine.geometry.dispose();
       this.scopeLine.geometry = new THREE.BufferGeometry().setFromPoints(pts);
       this.tipDot.position.copy(tip.pos);
+      // short yellow stick from the tip = direction of the TOP of the endoscope image
+      this.upStick.geometry.setFromPoints([tip.pos, tip.pos.clone().addScaledVector(tip.up, 3.5)]);
       this.guideMesh.material.opacity = 0.28;
-      const gs = Math.round(Math.min(220, window.innerHeight * 0.27));
+      const gs = this.guideSize();
       const gx = window.innerWidth - gs - 12;
       r.setViewport(gx, 12, gs, gs);
       r.setScissor(gx, 12, gs, gs);

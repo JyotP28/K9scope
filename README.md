@@ -64,7 +64,14 @@ Advance from the esophagus through the stomach and pylorus into the descending d
 * **Bonus:** retroflex (full up) in the gastric body to view the cardia — you'll see your own insertion tube.
 * Score = time (40) + contact avoidance (40) + insufflation control (10) + retroflexion (10).
 
-The bottom-right *scope guide* shows where the scope is (toggle with **G**). **Settings → New random patient** varies the anatomy.
+The bottom-right *scope guide* shows where the scope is (toggle with **G**; **V** or click its title to switch between ventrodorsal and right-lateral views). The yellow stick at the tip shows which way the **top of the endoscope image** points in the patient. **Settings → New random patient** varies the anatomy.
+
+## Orientation
+
+* **Compass** (top-right of the image, **O** to toggle): where the patient's **D**orsal/**V**entral, **L**eft/**R**ight and **Cr**anial/**Cd** (caudal) lie in the picture right now. Faded letters point along the view axis, and the text underneath says which way you're looking. The blue dashed drop points to the dependent side for the chosen patient position (left lateral recumbency by default), which is where fluid pools.
+* **Image orientation reference** (Settings → Orientation): by default the scope is rolled at insertion so that, entering the stomach with neutral knobs and no torque, the **lesser curvature is at 12 o'clock** and the greater curvature at 6. This is computed automatically for any anatomy, including a CT mesh. Alternative: "dorsal at 12 o'clock in the esophagus". **Roll trim** rotates the whole thing in 15° steps if your instructor or scope shows it differently.
+* **Label lesser / greater curvature** (Settings, off by default): marks both curvatures on the image rim while you're in the stomach. Useful while learning, so turn it off to test yourself.
+* Torque convention: turning the handle **clockwise** (as seen from above / from the operator) rolls the scope clockwise, so the image rotates counter-clockwise.
 
 ---
 
@@ -117,6 +124,7 @@ It's picked up automatically by `GamepadSource.js` (press any button once so the
 {
   "format": "k9scope-anatomy@1",
   "units": "mm",
+  "axes": { "dorsal": [0, 1, 0], "left": [1, 0, 0], "cranial": [0, 0, 1] },
   "centerline": [[x, y, z], ...],
   "landmarks": { "cardia": [x,y,z], "pylorus": [x,y,z], "target": [x,y,z], "les": [x,y,z], "retroflexTarget": [x,y,z] },
   "regions": [
@@ -128,7 +136,7 @@ It's picked up automatically by `GamepadSource.js` (press any button once so the
 }
 ```
 
-Landmarks can be arc-length distances along the centerline or 3D points (they're projected onto it). Region `from`/`to` are arc lengths in the file's units. `insufflation` sets how much that region distends with air (0 = rigid, 1 = stomach).
+`axes` gives the patient's dorsal, left and cranial directions in the mesh's coordinates. It drives the orientation compass and patient position, so check it against the CT. In DICOM patient (LPS) coordinates for a dog scanned in sternal recumbency, head first, that is usually dorsal = [0,-1,0], left = [1,0,0], cranial = [0,0,1]. Verify with a known landmark, though, because positioning varies. Landmarks can be arc-length distances along the centerline or 3D points (they're projected onto it). Region `from`/`to` are arc lengths in the file's units. `insufflation` sets how much that region distends with air (0 = rigid, 1 = stomach).
 
 4. Load it with **Settings → Load model…** (select both files), or host them in `models/` and open `index.html?model=models/yourdog.glb`.
 

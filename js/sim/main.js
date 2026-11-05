@@ -14,6 +14,7 @@ import { loadAnatomyGLB, loadAnatomyFiles, exportAnatomy } from './anatomy/Anato
 import { Scope } from './Scope.js';
 import { EndoRenderer } from './Renderer.js';
 import { Training } from './Training.js';
+import { OrientationOverlay, patientAxes, calibrateRoll, POSITIONS } from './Orientation.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -21,7 +22,8 @@ const LOCAL = params.has('local');
 
 // ------------------------------------------------------------ settings ----
 const settings = Object.assign(
-  { invertWheel: false, wheelSens: 1.0, invertTorque: false, guide: true },
+  { invertWheel: false, wheelSens: 1.0, invertTorque: false, guide: true,
+    orientRef: 'lesser12', rollTrim: 0, position: 'leftLateral', compass: true, curvLabels: false, guideView: 'vd' },
   JSON.parse(localStorage.getItem('k9scope.settings') || '{}'));
 const wheelCfg = { get wheelCmPerPx() { return 0.012 * settings.wheelSens; }, get invertWheel() { return settings.invertWheel; } };
 const saveSettings = () => localStorage.setItem('k9scope.settings', JSON.stringify(settings));
@@ -30,6 +32,18 @@ const saveSettings = () => localStorage.setItem('k9scope.settings', JSON.stringi
 const renderer = new EndoRenderer($('gl'));
 renderer.guide.enabled = settings.guide;
 document.body.classList.toggle('noguide', !settings.guide);
+renderer.guide.viewName = settings.guideView;
+const orient = new OrientationOverlay(renderer);
+orient.showCompass = settings.compass;
+orient.showCurvature = settings.curvLabels;
+orient.position = settings.position;
+let baseRoll = 0;
+function applyRoll(recalibrate = false) {
+  if (!model || !scope) return;
+  if (recalibrate) baseRoll = calibrateRoll(model, limits, settings.orientRef);
+  scope.rollOffset = baseRoll + settings.rollTrim;
+  $('rollInfo').textContent = `Scope roll at insertion: ${scope.rollOffset.toFixed(0)}° (auto ${baseRoll.toFixed(0)}° + trim ${settings.rollTrim}°)`;
+}
 
 // --------------------------------------------------------------- input ----
 const limits = { ...DEFAULT_LIMITS };
@@ -80,13 +94,17 @@ async function buildAnatomy(source) {
     model = new LumenModel(anatomyData.geometry, anatomyData.centerline, anatomyData.meta);
     console.log(`LumenModel: ${model.length.toFixed(1)} cm, ${model.n} samples, built in ${(performance.now() - t0).toFixed(0)} ms`);
     for (const k of ['cardia', 'pylorus', 'target']) if (model.landmarks[k] === undefined) throw new Error('Model metadata is missing landmark: ' + k);
+    const axes = patientAxes(anatomyData.meta);
+    renderer.axes = axes;
     renderer.setAnatomy(model, anatomyData.capGeometry);
+    orient.setModel(model, axes);
     scope = new Scope(model, { limits });
+    applyRoll(true);
     training = new Training(model);
     buildChecklist();
     $('modelName').textContent = 'Current model: ' + (anatomyData.meta.name || 'custom') + ` · ${model.length.toFixed(1)} cm`;
     $('loading').classList.add('hidden');
-    window.k9 = { model, scope, training, input, renderer, anatomyData }; // for debugging in the console
+    window.k9 = { model, scope, training, input, renderer, anatomyData, orient }; // for debugging in the console
   } catch (e) {
     console.error(e);
     $('loadMsg').textContent = 'Failed: ' + e.message;
@@ -171,6 +189,8 @@ window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   if (e.key === 'h' || e.key === 'H' || e.key === '?') { $('helpModal').classList.toggle('hidden'); }
   if (e.key === 'g' || e.key === 'G') { settings.guide = !settings.guide; renderer.guide.enabled = settings.guide; document.body.classList.toggle('noguide', !settings.guide); $('sGuide').checked = settings.guide; saveSettings(); }
+  if (e.key === 'o' || e.key === 'O') { settings.compass = !settings.compass; orient.showCompass = settings.compass; $('sCompass').checked = settings.compass; saveSettings(); }
+  if (e.key === 'v' || e.key === 'V') toggleGuideView();
   if (e.key === 'Escape') document.querySelectorAll('.modal').forEach((m) => m.id !== 'loading' && m.classList.add('hidden'));
 });
 
@@ -183,6 +203,26 @@ $('sInvertWheel').onchange = (e) => { settings.invertWheel = e.target.checked; s
 $('sInvertTorque').onchange = (e) => { settings.invertTorque = e.target.checked; saveSettings(); };
 $('sGuide').onchange = (e) => { settings.guide = e.target.checked; renderer.guide.enabled = settings.guide; document.body.classList.toggle('noguide', !settings.guide); saveSettings(); };
 $('sWheelSens').oninput = (e) => { settings.wheelSens = +e.target.value; $('sWheelSensV').textContent = settings.wheelSens + '×'; saveSettings(); };
+function toggleGuideView() {
+  settings.guideView = settings.guideView === 'vd' ? 'lateral' : 'vd';
+  renderer.setGuideView(settings.guideView);
+  $('guideViewName').textContent = settings.guideView === 'vd' ? 'ventrodorsal' : 'lateral (right side up)';
+  saveSettings();
+}
+$('guideViewName').textContent = settings.guideView === 'vd' ? 'ventrodorsal' : 'lateral (right side up)';
+$('guideToggle').onclick = toggleGuideView;
+for (const [k, v] of Object.entries(POSITIONS)) { const o = document.createElement('option'); o.value = k; o.textContent = v.label; $('sPosition').appendChild(o); }
+$('sPosition').value = settings.position;
+$('sPosition').onchange = (e) => { settings.position = e.target.value; orient.position = settings.position; saveSettings(); };
+$('sOrientRef').value = settings.orientRef;
+$('sOrientRef').onchange = (e) => { settings.orientRef = e.target.value; saveSettings(); applyRoll(true); };
+$('sRollTrim').value = settings.rollTrim;
+$('sRollTrimV').textContent = settings.rollTrim + '°';
+$('sRollTrim').oninput = (e) => { settings.rollTrim = +e.target.value; $('sRollTrimV').textContent = settings.rollTrim + '°'; saveSettings(); applyRoll(false); };
+$('sCompass').checked = settings.compass;
+$('sCompass').onchange = (e) => { settings.compass = e.target.checked; orient.showCompass = settings.compass; saveSettings(); };
+$('sCurv').checked = settings.curvLabels;
+$('sCurv').onchange = (e) => { settings.curvLabels = e.target.checked; orient.showCurvature = settings.curvLabels; saveSettings(); };
 $('btnNewPatient').onclick = async () => { $('settingsModal').classList.add('hidden'); await buildAnatomy({ kind: 'procedural', seed: Math.floor(Math.random() * 1e6) }); };
 $('btnExport').onclick = async () => {
   const { glb, json } = await exportAnatomy(anatomyData);
@@ -213,6 +253,7 @@ function loop(now) {
   }
   hapticCooldown -= dt;
   renderer.render(scope, now / 1000);
+  orient.update(scope);
   updateHUD(frame, dt);
 }
 

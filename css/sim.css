@@ -59,7 +59,7 @@ button, .filebtn {
   padding: 7px 10px; font: inherit; font-size: 12px; cursor: pointer;
 }
 button:hover, .filebtn:hover { border-color: var(--accent); }
-.guideLabel { position: fixed; right: 16px; bottom: calc(min(220px, 27vh) + 16px); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.guideLabel { position: fixed; right: 16px; text-align: right; cursor: pointer; pointer-events: auto; line-height: 1.5; bottom: calc(min(220px, 27vh) + 16px); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
 body.noguide .guideLabel { display: none; }
 
 #warn {
@@ -95,3 +95,26 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
 table.res { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
 table.res td { padding: 4px 0; border-bottom: 1px solid var(--line); }
 table.res td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+.guideLabel i { font-style: normal; text-transform: none; letter-spacing: 0; color: #c9b04a; }
+.guideLabel:hover { color: var(--accent); }
+#compass { position: fixed; width: 118px; pointer-events: none; z-index: 2; }
+#compass svg { width: 118px; height: 118px; display: block; }
+#compass .ring { fill: rgba(8, 10, 12, .62); stroke: #3a4850; stroke-width: 1.5; }
+#compass .hub { fill: #58d0ff; }
+#compass .topmark { fill: #e6edf0; }
+#compass .axl { font: 800 13px ui-sans-serif, -apple-system, sans-serif; fill: #e6edf0; paint-order: stroke; stroke: #000; stroke-width: 3px; }
+#compass .axl.dorsal, #compass .axl.ventral { fill: #ffd166; }
+#compass .axl.left, #compass .axl.right { fill: #7fe0a0; }
+#compass .axl.cranial, #compass .axl.caudal { fill: #9cc7ff; font-size: 11px; }
+#compass .fluid { stroke: #4aa8ff; stroke-width: 2; stroke-dasharray: 3 3; }
+#compass .fluidDot { fill: #4aa8ff; }
+#compass .cmpText { text-align: center; font-size: 10px; color: #9fb0b8; line-height: 1.35; display: flex; flex-direction: column; }
+#curvMarks span { position: fixed; transform: translate(-50%, -50%); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+#curvMarks .lc { background: rgba(255, 209, 102, .85); color: #241a00; }
+#curvMarks .gc { background: rgba(88, 208, 255, .85); color: #001a24; }
+#guideLabels { position: fixed; right: 12px; bottom: 12px; pointer-events: none; }
+#guideLabels .gax { position: absolute; transform: translate(-50%, -50%); font: 700 10px ui-sans-serif, sans-serif; color: #c7d3d9; text-shadow: 0 0 3px #000; }
+#guideLabels .gax.dorsal, #guideLabels .gax.ventral { color: #ffd166; }
+#guideLabels .gax.left, #guideLabels .gax.right { color: #7fe0a0; }
+#guideLabels .gax.cranial, #guideLabels .gax.caudal { color: #9cc7ff; }

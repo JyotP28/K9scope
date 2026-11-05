@@ -212,6 +212,8 @@ export function generateCanineUGI(seed = 1) {
   const meta = {
     format: 'k9scope-anatomy@1',
     units: 'cm',
+    // patient axes in model space (used for the orientation compass and patient position)
+    axes: { dorsal: [0, 1, 0], left: [1, 0, 0], cranial: [0, 0, 1] },
     name: 'Procedural canine upper GI (seed ' + seed + ')',
     landmarks: {
       ues: 0, les: sLES, cardia: sCardia, pylorus: sPyl, duodenalFlexure: sFlex,

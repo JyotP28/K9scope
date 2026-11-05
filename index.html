@@ -53,7 +53,7 @@
     <button id="btnSettings">Settings</button>
     <button id="btnRestart">Restart</button>
   </div>
-  <div class="guideLabel">Scope guide</div>
+  <div class="guideLabel" id="guideToggle" title="Switch guide view (V)">Scope guide · <span id="guideViewName"></span> ⇄<br><i>yellow stick = top of image</i></div>
 </aside>
 
 <div id="warn" class="hidden">WALL CONTACT</div>
@@ -85,8 +85,10 @@
         <li><kbd>↑</kbd><kbd>↓</kbd> tip up/down · <kbd>←</kbd><kbd>→</kbd> left/right</li>
         <li><kbd>Q</kbd><kbd>E</kbd> torque · <kbd>W</kbd><kbd>S</kbd> advance/withdraw</li>
         <li><kbd>Space</kbd> air · <kbd>R</kbd> water · <kbd>X</kbd> suction</li>
-        <li><kbd>Z</kbd> straighten tip · <kbd>G</kbd> scope guide · <kbd>H</kbd> this help</li>
+        <li><kbd>Z</kbd> straighten tip · <kbd>G</kbd> scope guide · <kbd>V</kbd> guide view · <kbd>O</kbd> compass · <kbd>H</kbd> this help</li>
       </ul>
+      <h4>Orientation compass</h4>
+      <p>Top-right of the image: where the patient's <b>D</b>orsal/<b>V</b>entral, <b>L</b>eft/<b>R</b>ight and <b>Cr</b>anial/<b>C</b>au<b>d</b>al lie in the picture right now (faded = pointing along the view). The blue drop points to the dependent side, where fluid pools for the chosen patient position.</p>
       <h4>Task</h4>
       <p>Advance esophagus → stomach → through the pylorus → descending duodenum. Insufflate the stomach to see; avoid wall contact (red-out). To pass the pylorus, aim the tip into the canal first. Bonus: retroflex (full up, ~180°) in the stomach to view the cardia.</p>
     </div>
@@ -100,6 +102,18 @@
   <label class="set">Scroll sensitivity <input type="range" id="sWheelSens" min="0.3" max="4" step="0.1"> <span id="sWheelSensV"></span></label>
   <label class="set"><input type="checkbox" id="sInvertTorque"> Invert torque</label>
   <label class="set"><input type="checkbox" id="sGuide"> Show scope guide</label>
+  <hr>
+  <h4>Orientation</h4>
+  <label class="set">Patient position <select id="sPosition"></select></label>
+  <label class="set">Image orientation reference
+    <select id="sOrientRef">
+      <option value="lesser12">Lesser curvature at 12 o'clock entering the stomach</option>
+      <option value="dorsal12">Dorsal at 12 o'clock in the esophagus</option>
+    </select></label>
+  <label class="set">Roll trim <input type="range" id="sRollTrim" min="-180" max="180" step="15"> <span id="sRollTrimV"></span></label>
+  <p class="hint" id="rollInfo"></p>
+  <label class="set"><input type="checkbox" id="sCompass"> Orientation compass (O)</label>
+  <label class="set"><input type="checkbox" id="sCurv"> Label lesser / greater curvature in the stomach</label>
   <hr>
   <h4>Anatomy</h4>
   <div class="row wrap">
