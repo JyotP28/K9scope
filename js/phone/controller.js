@@ -9,13 +9,25 @@ import { createClient } from '../common/transport.js';
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const LOCAL = params.has('local');
-const room = (location.hash || '').replace('#', '').trim();
+// URL fragment: #<room>[&k=<ably key>]. The key is saved on the phone, then removed from the address bar.
+const hashParts = (location.hash || '').replace('#', '').split('&');
+const room = (hashParts[0] || '').trim();
+const MODE = LOCAL ? 'local' : (params.get('via') || 'peer');
+let ablyKey = (() => { try { return localStorage.getItem('k9scope.ablyKey') || ''; } catch (e) { return ''; } })();
+for (const part of hashParts.slice(1)) {
+  if (part.startsWith('k=')) {
+    ablyKey = decodeURIComponent(part.slice(2));
+    try { localStorage.setItem('k9scope.ablyKey', ablyKey); } catch (e) { /* ignore */ }
+  }
+}
+if (hashParts.length > 1) history.replaceState(null, '', location.pathname + location.search + '#' + room);
 
 const S = Object.assign({ invUD: false, invLR: false, invTq: false, axis: 'long', haptic: true },
   JSON.parse(localStorage.getItem('k9scope.phone') || '{}'));
 const save = () => localStorage.setItem('k9scope.phone', JSON.stringify(S));
 
-const state = { ud: 0, lr: 0, torque: 0, air: false, water: false, suction: false };
+const state = { ud: 0, lr: 0, torque: 0, air: false, water: false, suction: false, tin: false, text: 0, jaws: false };
+let toolDragging = false, toolStatus = '';
 let limits = { ...DEFAULT_LIMITS };
 const locks = { ud: false, lr: false };
 
@@ -28,7 +40,8 @@ let t = null;
 function connect() {
   if (!room) { setConn('bad', 'no room - scan the QR code'); return; }
   if (t) t.close();
-  t = createClient(room, LOCAL);
+  t = createClient(room, MODE, ablyKey);
+  $('via').textContent = t.label || MODE;
   t.onStatus = (st, detail) => {
     if (st === 'connected') { setConn('ok', 'connected'); t.send({ t: 'hello', device: navigator.userAgent.slice(0, 60) }); sendState(true); }
     else if (st === 'error') setConn('bad', detail || 'error');
@@ -40,6 +53,13 @@ function connect() {
     if (m.t === 'ping') t.send({ t: 'pong', ts: m.ts });
     else if (m.t === 'rtt') $('rtt').textContent = `latency ${m.ms} ms`;
     else if (m.t === 'config' && m.limits) { limits = { ...limits, ...m.limits }; clampAll(); render(); }
+    else if (m.t === 'tool') {
+      state.tin = !!m.inserted;
+      if (!toolDragging) state.text = +m.ext || 0;
+      toolStatus = (m.status || '') ;
+      if (!state.tin) state.jaws = false;
+      render();
+    }
     else if (m.t === 'haptic') { buzz(m.ms || 30); document.body.classList.add('flash'); setTimeout(() => document.body.classList.remove('flash'), 120); }
   };
 }
@@ -48,10 +68,10 @@ function setConn(cls, text) { const p = $('conn'); p.className = 'pill ' + cls; 
 let lastSent = '', lastSendT = 0;
 function sendState(force = false) {
   if (!t) return;
-  const msg = { t: 'state', ud: +state.ud.toFixed(2), lr: +state.lr.toFixed(2), torque: +state.torque.toFixed(2), air: state.air, water: state.water, suction: state.suction };
+  const msg = { t: 'state', ud: +state.ud.toFixed(2), lr: +state.lr.toFixed(2), torque: +state.torque.toFixed(2), air: state.air, water: state.water, suction: state.suction, tin: state.tin, text: +state.text.toFixed(3), jaws: state.jaws };
   const key = JSON.stringify(msg);
   const now = performance.now();
-  if (force || key !== lastSent || now - lastSendT > 250) { // keep-alive 4 Hz when idle
+  if (force || key !== lastSent || now - lastSendT > (t.keepAliveMs || 250)) { // idle keep-alive
     t.send(msg); lastSent = key; lastSendT = now;
   }
 }
@@ -202,6 +222,25 @@ valve('vAir', () => { state.air = true; state.water = false; },
   () => { state.air = false; state.water = false; });
 valve('vSuc', () => { state.suction = true; }, null, () => { state.suction = false; });
 
+// ------------------------------------------------------ biopsy forceps ----
+$('btnTool').onclick = () => { state.tin = !state.tin; if (!state.tin) { state.text = 0; state.jaws = false; } buzz(15); render(); sendState(true); };
+(function toolStrip() {
+  const s = $('toolStrip');
+  let pid = null;
+  const setFrom = (e) => { const r = s.getBoundingClientRect(); state.text = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); render(); };
+  s.addEventListener('pointerdown', (e) => { if (!state.tin) return; pid = e.pointerId; toolDragging = true; s.setPointerCapture(pid); setFrom(e); });
+  s.addEventListener('pointermove', (e) => { if (e.pointerId === pid) setFrom(e); });
+  const up = (e) => { if (e.pointerId === pid) { pid = null; toolDragging = false; } };
+  s.addEventListener('pointerup', up); s.addEventListener('pointercancel', up);
+})();
+(function jaws() {
+  const b = $('btnJaws');
+  let pid = null;
+  b.addEventListener('pointerdown', (e) => { if (!state.tin) return; pid = e.pointerId; b.setPointerCapture(pid); state.jaws = true; buzz(10); render(); e.preventDefault(); });
+  const up = (e) => { if (e.pointerId === pid) { pid = null; state.jaws = false; buzz(25); render(); } };
+  b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+})();
+
 // ---------------------------------------------------------- gyro torque ----
 // W3C deviceorientation: R = Rz(alpha) * Rx(beta) * Ry(gamma) (intrinsic Z-X'-Y'')
 const qmul = (a, b) => [
@@ -271,7 +310,13 @@ document.addEventListener('visibilitychange', async () => {
 });
 $('gear').onclick = () => $('settings').classList.remove('hidden');
 $('btnClose').onclick = () => $('settings').classList.add('hidden');
-$('btnReconnect').onclick = () => { $('settings').classList.add('hidden'); connect(); };
+$('btnReconnect').onclick = () => {
+  const k = $('sAblyKey').value.trim();
+  if (k && k !== ablyKey) { ablyKey = k; try { localStorage.setItem('k9scope.ablyKey', k); } catch (e) { /* ignore */ } }
+  $('settings').classList.add('hidden'); connect();
+};
+$('sAblyKey').value = ablyKey;
+$('ablyRow').classList.toggle('hidden', MODE !== 'ably');
 for (const [id, key] of [['sInvUD', 'invUD'], ['sInvLR', 'invLR'], ['sInvTq', 'invTq'], ['sHaptic', 'haptic']]) {
   $(id).checked = S[key];
   $(id).onchange = (e) => { S[key] = e.target.checked; save(); clampAll(); render(); };
@@ -297,6 +342,13 @@ function render() {
   $('vAir').classList.toggle('water', state.water);
   $('vAir').querySelector('.lbl').textContent = state.water ? 'WATER' : 'AIR / WATER';
   $('vSuc').classList.toggle('on', state.suction);
+  $('btnTool').classList.toggle('on', state.tin);
+  $('btnTool').querySelector('small').textContent = state.tin ? 'withdraw' : 'insert';
+  $('btnJaws').disabled = !state.tin;
+  $('btnJaws').classList.toggle('on', state.jaws);
+  $('toolStrip').classList.toggle('off', !state.tin);
+  $('toolKnob').style.width = (state.text * 100).toFixed(1) + '%';
+  $('toolLbl').textContent = state.tin ? (toolStatus || 'drag → to advance forceps') : 'forceps not inserted';
 }
 
 function loop() { sendState(); $('rTq') && (gotOrientation && render()); requestAnimationFrame(loop); }

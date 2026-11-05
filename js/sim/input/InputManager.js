@@ -12,7 +12,10 @@
 //   manager.setAbsolute(src, { ud?, lr?, torque? })   absolute knob / torque angles (deg)
 //   manager.addRelative(src, { ud?, lr?, torque?, insert? })  increments (deg, cm)
 //   manager.setButtons(src, { air?, water?, suction? })
-//   manager.trigger(src, 'straighten' | 'zeroTorque')
+//   manager.setButtons(src, { jaws? })              biopsy forceps jaws held open
+//   manager.setTool(src, { inserted?, ext? })      forceps in channel; extension 0..1
+//   manager.addRelative(src, { toolExt? })         change forceps extension (0..1 units)
+//   manager.trigger(src, 'straighten' | 'toggleTool')
 
 export class InputManager {
   constructor(limits) {
@@ -21,6 +24,7 @@ export class InputManager {
     this.ud = 0; this.lr = 0; this.torque = 0;
     this.buttons = new Map(); // src -> {air, water, suction}
     this.insertAccum = 0;
+    this.tool = { inserted: false, ext: 0 };
     this.events = [];
     this.lastActive = null;
     this.lastActiveTime = 0;
@@ -53,6 +57,7 @@ export class InputManager {
     if (v.lr) this.lr += v.lr;
     if (v.torque) this.torque += v.torque;
     if (v.insert) this.insertAccum += v.insert;
+    if (v.toolExt) this.tool.ext = Math.max(0, Math.min(1, this.tool.ext + v.toolExt));
     this._clamp();
     this._touch(src);
   }
@@ -64,6 +69,12 @@ export class InputManager {
     if (b.air || b.water || b.suction) this._touch(src);
   }
 
+  setTool(src, t) {
+    if (t.inserted !== undefined) { this.tool.inserted = !!t.inserted; if (!t.inserted) this.tool.ext = 0; }
+    if (t.ext !== undefined) this.tool.ext = Math.max(0, Math.min(1, +t.ext || 0));
+    this._touch(src);
+  }
+
   trigger(src, name) {
     this.events.push(name);
     this._touch(src);
@@ -72,14 +83,16 @@ export class InputManager {
   // Called by the sim once per frame. Returns the merged frame and clears one-shots.
   poll(dt) {
     for (const s of this.sources) if (s.update) s.update(dt);
-    let air = false, water = false, suction = false;
-    for (const b of this.buttons.values()) { air ||= b.air; water ||= b.water; suction ||= b.suction; }
+    let air = false, water = false, suction = false, jaws = false;
+    for (const b of this.buttons.values()) { air ||= b.air; water ||= b.water; suction ||= b.suction; jaws ||= !!b.jaws; }
     for (const e of this.events) {
       if (e === 'straighten') { this.ud = 0; this.lr = 0; }
+      if (e === 'toggleTool') this.setTool({ name: 'ui' }, { inserted: !this.tool.inserted });
     }
     const frame = {
       ud: this.ud, lr: this.lr, torque: this.torque,
       air, water, suction,
+      tool: { inserted: this.tool.inserted, ext: this.tool.ext, jaws },
       insert: this.insertAccum,
       events: this.events,
       source: this.lastActive ? this.lastActive.name : '-',

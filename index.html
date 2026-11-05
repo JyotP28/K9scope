@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/sim.css">
 <link rel="icon" href="data:,">
 <script src="vendor/peerjs.min.js"></script>
+<script src="vendor/ably.min.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script type="importmap">
 { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
@@ -31,6 +32,8 @@
       <div class="hint">Scan with your phone camera.<br>Room <b id="roomId">-</b> · <a id="phoneLink" target="_blank">open link</a></div>
     </div>
     <div id="connDetail" class="hint"></div>
+    <div class="hint">via <b id="connMethod"></b></div>
+    <div id="connHint" class="hint warnHint"></div>
   </section>
 
   <section class="card">
@@ -43,8 +46,10 @@
     <div class="metric"><label>Insertion</label><b id="mDepth">0 cm</b></div>
     <div class="metric"><label>Contacts</label><b id="mContacts">0</b></div>
     <div class="metric"><label>Region</label><b id="mRegion">-</b></div>
+    <div class="row small" style="grid-column:1/-1;margin:0"><span id="mLight"></span></div>
     <div class="bar"><label>Insufflation</label><div class="track"><div id="mInfl"></div><i></i></div></div>
     <div class="row small"><span>Tip <b id="mTip">U 0° · R 0°</b></span><span>Torque <b id="mTorque">0°</b></span></div>
+    <div class="row small"><span id="mTool">Forceps: not inserted</span><span id="mSamples"></span></div>
     <div class="row small"><span>Input <b id="mSource">-</b></span><span id="valves"><i id="vAir">AIR</i><i id="vWater">H₂O</i><i id="vSuc">SUC</i></span></div>
   </section>
 
@@ -80,11 +85,19 @@
       <ul><li><b>Scroll / two-finger swipe</b> = advance / withdraw the insertion tube</li></ul>
     </div>
     <div>
+      <h4>Biopsy forceps</h4>
+      <ul>
+        <li><kbd>B</kbd> or phone <b>FORCEPS</b>: insert / withdraw through the channel</li>
+        <li><b>Shift + scroll</b>, <kbd>M</kbd>/<kbd>N</kbd> or the phone slider: advance / retract</li>
+        <li>Hold <b>left mouse button</b>, <kbd>J</kbd> or phone <b>JAWS</b> = open; release = close (bite)</li>
+        <li>Press the open jaws onto the mucosa (en face, not tangential), close, then <b>withdraw the forceps</b> to retrieve the sample</li>
+      </ul>
       <h4>Keyboard fallback</h4>
       <ul>
         <li><kbd>↑</kbd><kbd>↓</kbd> tip up/down · <kbd>←</kbd><kbd>→</kbd> left/right</li>
         <li><kbd>Q</kbd><kbd>E</kbd> torque · <kbd>W</kbd><kbd>S</kbd> advance/withdraw</li>
         <li><kbd>Space</kbd> air · <kbd>R</kbd> water · <kbd>X</kbd> suction</li>
+        <li><kbd>−</kbd><kbd>+</kbd> light source</li>
         <li><kbd>Z</kbd> straighten tip · <kbd>G</kbd> scope guide · <kbd>V</kbd> guide view · <kbd>O</kbd> compass · <kbd>H</kbd> this help</li>
       </ul>
       <h4>Orientation compass</h4>
@@ -102,6 +115,29 @@
   <label class="set">Scroll sensitivity <input type="range" id="sWheelSens" min="0.3" max="4" step="0.1"> <span id="sWheelSensV"></span></label>
   <label class="set"><input type="checkbox" id="sInvertTorque"> Invert torque</label>
   <label class="set"><input type="checkbox" id="sGuide"> Show scope guide</label>
+  <hr>
+  <h4>Phone connection</h4>
+  <label class="set">Method <select id="sTransport">
+    <option value="peer">WebRTC peer-to-peer (home Wi-Fi, hotspot)</option>
+    <option value="ably">Ably relay (campus / restricted Wi-Fi)</option>
+  </select></label>
+  <div id="ablyBox">
+    <label class="set">Ably API key <input type="password" id="sAblyKey" placeholder="appId.keyId:secret" autocomplete="off" spellcheck="false" style="flex:1"></label>
+    <label class="set"><input type="checkbox" id="sQrKey"> Put the key in the QR code (otherwise enter it on the phone once)</label>
+    <p class="hint">Use a <b>restricted</b> key: in the Ably dashboard → your app → API Keys → create a key whose capability is limited to channels <code>k9scope:*</code> with <i>publish, subscribe, presence</i> only. The key is stored in this browser and only shared through the QR code, never uploaded to GitHub.</p>
+    <p class="hint" id="ablyMsg" style="color:var(--warn)"></p>
+  </div>
+  <button id="btnConnApply">Save &amp; reconnect</button>
+  <hr>
+  <h4>Video processor</h4>
+  <label class="set">Light source <input type="range" id="sLight" min="0.25" max="3" step="0.05"> <span id="sLightV"></span> <span class="hint">(− / + keys)</span></label>
+  <label class="set"><input type="checkbox" id="sAGC"> Auto-exposure (darkens the image close to the mucosa)</label>
+  <hr>
+  <h4>Task</h4>
+  <label class="set">Mode <select id="sTask">
+    <option value="nav">Navigation: esophagus → duodenum</option>
+    <option value="biopsy">Navigation + biopsies (2 each: stomach body, antrum, duodenum)</option>
+  </select></label>
   <hr>
   <h4>Orientation</h4>
   <label class="set">Patient position <select id="sPosition"></select></label>

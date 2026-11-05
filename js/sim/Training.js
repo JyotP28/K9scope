@@ -1,12 +1,29 @@
 // Training task v1: esophagus -> stomach -> pylorus -> duodenum.
 // Tracks time, wall contacts, insertion depth, over-insufflation, optional retroflexion.
+// 'biopsy' mode adds a biopsy protocol: retrieve samples from each target region.
 
 import * as THREE from 'three';
 
+// samples required per region in biopsy mode (region names from the anatomy metadata).
+// Kept small for practice; real protocols take more (e.g. several per region).
+export const BIOPSY_TARGETS = { 'Stomach - body': 2, 'Stomach - antrum': 2, 'Duodenum': 2 };
+const QUALITY_VALUE = { good: 1, adequate: 0.75, poor: 0.4 };
+
 export class Training {
-  constructor(model) {
+  constructor(model, mode = 'nav') {
     this.model = model;
+    this.mode = mode;
     this.reset();
+  }
+
+  // a sample retrieved from the forceps
+  addSample(sample) {
+    if (this.state === 'ready') this.state = 'running';
+    this.samples.push({ ...sample, t: this.t });
+  }
+  samplesIn(region) { return this.samples.filter((x) => x.region === region); }
+  biopsyDone() {
+    return Object.entries(BIOPSY_TARGETS).every(([r, n]) => this.samplesIn(r).length >= n);
   }
 
   reset() {
@@ -27,6 +44,10 @@ export class Training {
     ];
     this.retroflex = { done: false, label: 'Bonus: retroflex to view the cardia (J-maneuver)' };
     this.events = [];
+    this.samples = [];
+    this.lostSamples = 0;
+    this.missedBites = 0;
+    this.unsafeMoves = 0;
   }
 
   update(scope, dt) {
@@ -70,7 +91,7 @@ export class Training {
         ev.push({ type: 'milestone', label: 'Retroflexion: cardia visualised' });
       }
     }
-    if (this.milestones.every((m) => m.done)) {
+    if (this.milestones.every((m) => m.done) && (this.mode !== 'biopsy' || this.biopsyDone())) {
       this.state = 'done';
       ev.push({ type: 'finish', result: this.result() });
     }
@@ -79,16 +100,32 @@ export class Training {
 
   result() {
     const time = this.t;
-    const timeScore = Math.round(40 * THREE.MathUtils.clamp(1 - (time - 90) / 210, 0, 1));
-    const contactScore = Math.max(0, 40 - 5 * this.contacts);
+    const B = this.mode === 'biopsy';
+    // biopsy mode: more time allowed, and 25 points move from time/contacts to the biopsies
+    const timeMax = B ? 25 : 40, contactMax = B ? 30 : 40;
+    const tFull = B ? 240 : 90, tZero = B ? 600 : 300;
+    const timeScore = Math.round(timeMax * THREE.MathUtils.clamp(1 - (time - tFull) / (tZero - tFull), 0, 1));
+    const contactScore = Math.max(0, contactMax - (B ? 4 : 5) * this.contacts);
     const inflScore = Math.max(0, Math.round(10 - 2 * (this.overInflTime / 5)));
     const bonus = this.retroflex.done ? 10 : 0;
-    const total = Math.min(100, timeScore + contactScore + inflScore + bonus);
+    let biopsyScore = 0;
+    const biopsy = [];
+    if (B) {
+      let got = 0, need = 0;
+      for (const [r, n] of Object.entries(BIOPSY_TARGETS)) {
+        const xs = this.samplesIn(r).slice().sort((a, b) => QUALITY_VALUE[b.quality] - QUALITY_VALUE[a.quality]).slice(0, n);
+        got += xs.reduce((a, x) => a + QUALITY_VALUE[x.quality], 0); need += n;
+        biopsy.push({ region: r, n: this.samplesIn(r).length, need: n, q: xs.map((x) => x.quality) });
+      }
+      biopsyScore = Math.max(0, Math.round(25 * got / need) - 3 * this.unsafeMoves - this.lostSamples);
+    }
+    const total = Math.min(100, timeScore + contactScore + inflScore + bonus + biopsyScore);
     const grade = total >= 90 ? 'Excellent' : total >= 75 ? 'Good' : total >= 55 ? 'Fair' : 'Keep practising';
     return {
       time, contacts: this.contacts, contactTime: this.contactTime, overInflTime: this.overInflTime,
       maxDepth: this.maxDepth, retroflex: this.retroflex.done,
-      parts: { timeScore, contactScore, inflScore, bonus }, total, grade,
+      parts: { timeScore, contactScore, inflScore, bonus, biopsyScore, timeMax, contactMax }, total, grade,
+      mode: this.mode, biopsy, samples: this.samples.slice(), lostSamples: this.lostSamples, missedBites: this.missedBites, unsafeMoves: this.unsafeMoves,
       splits: this.milestones.map((m) => ({ label: m.label, time: m.time })),
     };
   }

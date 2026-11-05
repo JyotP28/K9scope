@@ -7,6 +7,9 @@
 //       lr      tip right(+)/left(-) angulation command, degrees
 //       torque  insertion-tube rotation, degrees (clockwise as seen by operator = +)
 //       air, water, suction   booleans (valve pressed)
+//       tin    biopsy forceps inserted in the channel (bool)
+//       text   forceps extension 0..1 (0 = retracted to the tip, 1 = fully out)
+//       jaws   forceps jaws held open (bool)
 //   { t: 'straighten' }          release/straighten tip (one-shot)
 //   { t: 'pong', ts }            reply to ping
 //   { t: 'hello', device }       first message after connecting
@@ -17,6 +20,7 @@
 //   { t: 'rtt', ms }             measured round-trip latency, for display
 //   { t: 'haptic', ms }          buzz the controller (wall contact etc.)
 //   { t: 'status', text }        short status line for the controller screen
+//   { t: 'tool', inserted, ext, loaded, status }   forceps state (keeps the phone UI in sync)
 
 export const PEER_PREFIX = 'k9scope-';
 

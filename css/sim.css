@@ -118,3 +118,13 @@ table.res td:last-child { text-align: right; font-variant-numeric: tabular-nums;
 #guideLabels .gax.dorsal, #guideLabels .gax.ventral { color: #ffd166; }
 #guideLabels .gax.left, #guideLabels .gax.right { color: #7fe0a0; }
 #guideLabels .gax.cranial, #guideLabels .gax.caudal { color: #9cc7ff; }
+
+#mTool { color: var(--dim); }
+#mTool.active { color: #c9d6dc; }
+#mSamples { color: var(--ok); font-weight: 600; }
+#toast div { max-width: 520px; text-align: center; }
+
+.warnHint { color: var(--warn); margin-top: 4px; }
+.warnHint a { color: var(--accent); }
+#sAblyKey { background: #1a232a; color: var(--ink); border: 1px solid #2a3740; border-radius: 6px; padding: 6px 8px; font: 12px ui-monospace, Menlo, monospace; }
+code { font-size: 11px; background: #1c252b; padding: 1px 4px; border-radius: 4px; }

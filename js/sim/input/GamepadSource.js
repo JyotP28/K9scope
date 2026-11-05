@@ -13,11 +13,13 @@
 //                             (we only use the change, so wraparound is handled)
 //   button 0 air/water (air)   button 1 water (lens wash)   button 2 suction
 //   button 3 straighten tip
+//   button 4 insert / withdraw biopsy forceps     button 5 forceps jaws (hold = open)
+//   axis 4   forceps extension -1..+1 = retracted..fully out (applied when it moves)
 //
 // Axes are only applied after they move, so a random gamepad plugged in won't
 // fight the phone.
 
-const MAP = { ud: 0, lr: 1, torque: 2, insert: 3, air: 0, water: 1, suction: 2, straighten: 3 };
+const MAP = { ud: 0, lr: 1, torque: 2, insert: 3, air: 0, water: 1, suction: 2, straighten: 3, tool: 4, jaws: 5, toolExt: 4 };
 const INSERT_SPAN = 40; // cm represented by the full -1..+1 axis range
 const DEAD = 0.02;
 
@@ -42,7 +44,7 @@ export class GamepadSource {
     if (!gp) return;
     const ax = (i) => (gp.axes[i] ?? 0);
     const bt = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
-    const cur = { ud: ax(MAP.ud), lr: ax(MAP.lr), torque: ax(MAP.torque), insert: ax(MAP.insert), b3: bt(MAP.straighten) };
+    const cur = { ud: ax(MAP.ud), lr: ax(MAP.lr), torque: ax(MAP.torque), insert: ax(MAP.insert), b3: bt(MAP.straighten), b4: bt(MAP.tool), te: ax(MAP.toolExt) };
     if (this.prev) {
       const moved = (k) => Math.abs(cur[k] - this.prev[k]) > DEAD;
       const L = this.limits;
@@ -56,9 +58,12 @@ export class GamepadSource {
       if (Math.abs(d) > 0.0005) { this.m.addRelative(this, { insert: d * INSERT_SPAN / 2 }); this.prev.insert = cur.insert; }
       if (cur.b3 && !this.prev.b3) this.m.trigger(this, 'straighten');
       this.prev.b3 = cur.b3;
+      if (cur.b4 && !this.prev.b4) this.m.trigger(this, 'toggleTool');
+      this.prev.b4 = cur.b4;
+      if (Math.abs(cur.te - this.prev.te) > DEAD) { this.m.setTool(this, { ext: (cur.te + 1) / 2 }); this.prev.te = cur.te; }
     } else {
       this.prev = { ...cur };
     }
-    this.m.setButtons(this, { air: bt(MAP.air), water: bt(MAP.water), suction: bt(MAP.suction) });
+    this.m.setButtons(this, { air: bt(MAP.air), water: bt(MAP.water), suction: bt(MAP.suction), jaws: bt(MAP.jaws) });
   }
 }

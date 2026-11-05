@@ -9,6 +9,7 @@
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="css/phone.css">
 <script src="vendor/peerjs.min.js"></script>
+<script src="vendor/ably.min.js"></script>
 </head>
 <body>
 <div id="body">
@@ -37,6 +38,12 @@
 
   <div id="torqueStrip" class="hidden"><span>No gyroscope - drag here for torque</span><i id="tsKnob"></i></div>
 
+  <div id="toolRow">
+    <button id="btnTool">FORCEPS<br><small>insert</small></button>
+    <div id="toolStrip" class="off"><span id="toolLbl">forceps not inserted</span><i id="toolKnob"></i></div>
+    <button id="btnJaws" disabled>JAWS<br><small>hold open</small></button>
+  </div>
+
   <div id="bottom">
     <button id="btnStraight">Release / straighten tip</button>
     <button id="btnZero">Zero torque</button>
@@ -63,6 +70,8 @@
       <select id="sAxis"><option value="long">Twist about long axis (realistic)</option><option value="screen">Steering-wheel (screen normal)</option></select>
     </label>
     <label><input type="checkbox" id="sHaptic" checked> Haptic ticks (Android)</label>
+    <label id="ablyRow">Ably key <input type="password" id="sAblyKey" placeholder="appId.keyId:secret" autocomplete="off"></label>
+    <p class="hint">Connection: <b id="via"></b></p>
     <button id="btnReconnect">Reconnect</button>
     <button id="btnClose">Done</button>
   </div>

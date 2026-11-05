@@ -92,7 +92,8 @@ export class Scope {
 
     // --- insufflation ---
     if (frame.air) this.inflate += 0.16 * dt;
-    if (frame.suction) this.inflate -= 0.30 * dt;
+    // suction shares the working channel: much weaker with forceps in it
+    if (frame.suction) this.inflate -= (frame.tool && frame.tool.inserted ? 0.08 : 0.30) * dt;
     this.inflate -= 0.006 * dt; // slow leak past the scope
     this.inflate = Math.max(0.4, Math.min(1.2, this.inflate));
     if (frame.water) this.smear = Math.max(0, this.smear - 1.6 * dt);

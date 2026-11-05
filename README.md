@@ -34,6 +34,19 @@ python3 -m http.server 8000
 * **No phone at all?** Use the keyboard (press **H** in the sim for the list).
 * **Test the phone UI on the laptop:** open `http://localhost:8000/?local` and, in the same browser, `http://localhost:8000/phone.html?local#<room>` (the sim shows the exact link). This uses a local BroadcastChannel instead of WebRTC.
 
+### On campus / restricted Wi-Fi: Ably relay
+
+School and enterprise networks usually block peer-to-peer WebRTC, so the phone never connects (the laptop page suggests switching after ~25 s). Use the **Ably** relay instead. It runs over a normal secure websocket on port 443, like any website.
+
+1. Make a free account at [ably.com](https://ably.com) and create an app.
+2. In the app's **API Keys** tab, create a **new restricted key**: capability *Selected channels* `k9scope:*` with only **publish, subscribe, presence** ticked. Don't use the default root key. The key ends up on students' phones, so restrict it, and you can revoke or rotate it anytime.
+3. On the laptop sim: **Settings → Phone connection → Ably relay**, paste the key, **Save & reconnect**.
+4. Scan the QR code as usual. The key rides along in the link's `#fragment`, which browsers never send to the web server. The phone saves it and removes it from the address bar. If you untick "Put the key in the QR code", enter it once in the phone's ⚙ settings instead.
+
+The key is stored only in each browser's local storage and is never part of the files you upload to GitHub.
+
+**Usage and quota (free plan: 6 M messages/month, 200 connections, 50 msg/s per connection).** Ably counts each publish *and* each delivery. To stay well inside that, the phone sends its state at most **20×/s**, and only when something changes. Idle, it sends a keep-alive once per second, with latency pings every 5 s. Forceps status from the laptop goes at most 5×/s. Worst case (dials moving non-stop) that's about 40 counted messages/s, roughly 145 k/hour, so about 40 hours of constant knob-twiddling per month. Real sessions are mostly idle and use far less. Latency goes via Ably's nearest data centre, typically a few tens of ms; it's shown on both screens.
+
 ---
 
 ## Controls
@@ -49,6 +62,10 @@ python3 -m http.server 8000
 | Suction | hold red valve | X |
 | Straighten tip | *Release / straighten tip* | Z |
 | Lock a dial | lock buttons beside the dial | — |
+| Insert / withdraw biopsy forceps | **FORCEPS** button | B |
+| Advance / retract forceps | drag the forceps strip | Shift + scroll, or M / N |
+| Open forceps jaws (release = bite) | hold **JAWS** | hold left mouse button on the image, or J |
+| Light source brighter / dimmer | — | + / − (or Settings) |
 | Zero torque | *Zero torque* | — |
 
 Dials hold their position when released. Deflection limits: up 210°, down 90°, right/left 100° (typical 9 mm GI scope; change `DEFAULT_LIMITS` in `js/common/protocol.js`). Directions can be inverted in the phone's ⚙ settings and the sim's Settings (scroll direction, torque).
@@ -66,6 +83,22 @@ Advance from the esophagus through the stomach and pylorus into the descending d
 
 The bottom-right *scope guide* shows where the scope is (toggle with **G**; **V** or click its title to switch between ventrodorsal and right-lateral views). The yellow stick at the tip shows which way the **top of the endoscope image** points in the patient. **Settings → New random patient** varies the anatomy.
 
+## Biopsy
+
+1. Insert the forceps (**B** or the phone's FORCEPS button). They take about a second to pass the channel and emerge at about **7 o'clock** in the image.
+2. Position the tip **1–2 cm** from the target. Too close and there's no room to open the jaws, and the status line says so.
+3. Advance the forceps a little, **open the jaws**, push them onto the mucosa (status shows "on mucosa"), then **release to close**. A bleeding biopsy site appears where you bit.
+4. **Withdraw the forceps completely** to retrieve the sample (one bite per pass). Opening the jaws again before retrieval drops the sample.
+
+* **Sample quality:** en-face bites (forceps roughly perpendicular to the wall) are graded *good*, oblique bites *adequate* and tangential bites *poor*.
+* **Errors tracked:** closing in the lumen counts as a missed bite. Moving the scope more than about 1 cm with the forceps extended is flagged and penalised.
+* **Suction:** much weaker while the forceps occupy the working channel, as on a real scope.
+* **Biopsy task:** Settings → Task → *Navigation + biopsies* requires 2 samples each from the gastric body, antrum and duodenum, plus the navigation milestones, in any order. Scoring becomes time 25, contacts 30, insufflation 10, biopsies 25 (quality-weighted), and retroflexion 10. Change the required numbers in `BIOPSY_TARGETS` in `js/sim/Training.js`. Real biopsy protocols usually take more samples per region than this.
+
+## Light / video processor
+
+Settings → *Video processor*: **Light source** 25–300% (or **+ / −** keys) and **Auto-exposure**. Auto-exposure darkens the image as the lens nears the mucosa, like a real processor. Turn it off for a constant exposure.
+
 ## Orientation
 
 * **Compass** (top-right of the image, **O** to toggle): where the patient's **D**orsal/**V**entral, **L**eft/**R**ight and **Cr**anial/**Cd** (caudal) lie in the picture right now. Faded letters point along the view axis, and the text underneath says which way you're looking. The blue dashed drop points to the dependent side for the chosen patient position (left lateral recumbency by default), which is where fluid pools.
@@ -80,7 +113,7 @@ The bottom-right *scope guide* shows where the scope is (toggle with **G**; **V*
 ```
 index.html, phone.html          the two pages
 js/common/protocol.js           message contract phone <-> sim, limits
-js/common/transport.js          PeerJS (WebRTC) + local BroadcastChannel transports
+js/common/transport.js          PeerJS (WebRTC), Ably relay and local BroadcastChannel transports
 js/phone/controller.js          phone control-section UI, gyro torque, valves, haptics
 js/sim/main.js                  wiring + HUD
 js/sim/input/InputManager.js    merges all input sources into one control frame
@@ -94,7 +127,7 @@ js/sim/Scope.js                 insertion tube / bending section kinematics, con
 js/sim/Renderer.js              Three.js view, fisheye post-process, red-out, scope guide
 js/sim/Training.js              milestones and scoring
 models/canine_ugi.glb/.json     the procedural anatomy exported as glTF (example for swapping)
-vendor/                         three.js r187, PeerJS 1.5.5, qrcode-generator (MIT)
+vendor/                         three.js r187, PeerJS 1.5.5, Ably JS 2.30, qrcode-generator
 ```
 
 The simulator only ever sees a **control frame** (`ud`, `lr`, `torque`, `insert`, `air`, `water`, `suction`) from the `InputManager`. Any number of sources can feed it, so new controllers don't touch the sim.
@@ -111,6 +144,8 @@ Make the board enumerate as a HID gamepad (Arduino `Joystick` library, or Circui
 | axis 3 | insertion encoder position (wraps; only the change is used; full range = 40 cm) |
 | button 0 / 1 / 2 | air / water / suction |
 | button 3 | straighten |
+| button 4 / 5 | insert-withdraw forceps / jaws (hold = open) |
+| axis 4 | forceps extension (−1 retracted … +1 fully out) |
 
 It's picked up automatically by `GamepadSource.js` (press any button once so the browser exposes it). Edit `MAP` there if your wiring differs. Only axes that move are applied, so it can coexist with the phone.
 

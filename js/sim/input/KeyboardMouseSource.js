@@ -8,6 +8,10 @@
 //      W / S            advance / withdraw
 //      Space (hold)     air (insufflate)      R (hold)  water (lens wash)
 //      X (hold)         suction               Z         straighten tip
+//    Biopsy forceps:
+//      B                insert / withdraw forceps
+//      Shift + scroll   advance / retract the forceps (N / M keys too)
+//      J (hold) or hold the left mouse button on the image: open jaws; release = close (bite)
 
 export class KeyboardMouseSource {
   constructor(wheelTarget, settings) {
@@ -28,6 +32,7 @@ export class KeyboardMouseSource {
       if (e.repeat) return;
       this.keys.add(k);
       if (k === 'z') m.trigger(this, 'straighten');
+      if (k === 'b') m.trigger(this, 'toggleTool');
       this._buttons();
     });
     window.addEventListener('keyup', (e) => {
@@ -35,7 +40,13 @@ export class KeyboardMouseSource {
       this.keys.delete(k);
       this._buttons();
     });
-    window.addEventListener('blur', () => { this.keys.clear(); this._buttons(); });
+    window.addEventListener('blur', () => { this.keys.clear(); this.mouseJaws = false; this._buttons(); });
+    this.mouseJaws = false;
+    const canvas = document.getElementById('gl');
+    if (canvas) {
+      canvas.addEventListener('pointerdown', (e) => { if (e.button === 0 && m.tool.inserted) { this.mouseJaws = true; this._buttons(); } });
+      window.addEventListener('pointerup', () => { if (this.mouseJaws) { this.mouseJaws = false; this._buttons(); } });
+    }
 
     this.target.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -43,12 +54,18 @@ export class KeyboardMouseSource {
       if (e.deltaMode === 1) dy *= 16;      // lines -> px
       else if (e.deltaMode === 2) dy *= 400; // pages -> px
       const sign = this.settings.invertWheel ? -1 : 1;
+      if (e.shiftKey) {
+        // Shift+scroll moves the forceps (some browsers turn shift+wheel into horizontal scroll)
+        const d = dy || e.deltaX;
+        if (m.tool.inserted) m.addRelative({ name: 'forceps' }, { toolExt: sign * d * 0.0012 });
+        return;
+      }
       m.addRelative({ name: this.wheelName }, { insert: sign * dy * this.settings.wheelCmPerPx });
     }, { passive: false });
   }
 
   _buttons() {
-    this.m.setButtons(this, { air: this.keys.has(' '), water: this.keys.has('r'), suction: this.keys.has('x') });
+    this.m.setButtons(this, { air: this.keys.has(' '), water: this.keys.has('r'), suction: this.keys.has('x'), jaws: this.keys.has('j') || this.mouseJaws });
   }
 
   update(dt) {
@@ -63,6 +80,8 @@ export class KeyboardMouseSource {
     if (k.has('q')) v.torque = (v.torque || 0) - 70 * dt;
     if (k.has('w')) v.insert = (v.insert || 0) + 5 * dt;
     if (k.has('s')) v.insert = (v.insert || 0) - 5 * dt;
+    if (k.has('m')) v.toolExt = 0.5 * dt;
+    if (k.has('n')) v.toolExt = -0.5 * dt;
     if (Object.keys(v).length) this.m.addRelative(this, v);
   }
 }

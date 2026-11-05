@@ -56,6 +56,16 @@ html, body {
 #torqueStrip { position: relative; height: 42px; border-radius: 10px; background: #1b2124; border: 1px dashed #3a454b; margin-top: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--dim); touch-action: none; }
 #torqueStrip i { position: absolute; top: 6px; bottom: 6px; width: 8px; border-radius: 4px; background: #58d0ff; left: 50%; margin-left: -4px; }
 
+#toolRow { display: flex; gap: 8px; margin-top: 6px; align-items: stretch; }
+#toolRow button { width: 74px; padding: 6px 4px; border-radius: 12px; border: 1px solid #343d42; background: #1b2124; color: var(--ink); font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .05em; line-height: 1.2; }
+#toolRow button small { font-weight: 500; font-size: 9px; color: var(--dim); letter-spacing: 0; }
+#btnTool.on { background: #3b3320; border-color: #e6b44a; color: #ffd98a; }
+#btnJaws:disabled { opacity: .35; }
+#btnJaws.on { background: #5a2b26; border-color: #ff7a6a; }
+#toolStrip { flex: 1; position: relative; border-radius: 12px; background: #1b2124; border: 1px solid #343d42; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--dim); touch-action: none; min-height: 48px; overflow: hidden; }
+#toolStrip.off { opacity: .45; }
+#toolStrip i { position: absolute; top: 0; bottom: 0; left: 0; width: 0%; background: linear-gradient(90deg, rgba(230,180,74,.15), rgba(230,180,74,.45)); border-right: 3px solid #e6b44a; }
+#toolLbl { position: relative; z-index: 1; text-align: center; padding: 0 6px; }
 #bottom { display: flex; gap: 8px; margin-top: 8px; }
 #bottom button { flex: 1; padding: 13px 6px; border-radius: 12px; border: 1px solid #343d42; background: #1b2124; color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; }
 #bottom button:active { background: #2a3338; }
@@ -71,3 +81,5 @@ html, body {
 .panel select { flex: 1; background: #1b2124; color: var(--ink); border: 1px solid #343d42; border-radius: 8px; padding: 6px; }
 .hidden { display: none !important; }
 body.flash #body { box-shadow: inset 0 0 0 4px rgba(255, 70, 60, .8); }
+
+#sAblyKey { flex: 1; min-width: 0; background: #1b2124; color: var(--ink); border: 1px solid #343d42; border-radius: 8px; padding: 6px; font: 12px ui-monospace, Menlo, monospace; }

@@ -4,6 +4,9 @@
 //  inset:  optional "scope guide" overview (like a magnetic scope-position imager)
 
 import * as THREE from 'three';
+import { buildForcepsMesh, updateForcepsMesh } from './Forceps.js';
+
+export const MAX_SITES = 24;
 
 const SRC_FOV = 140;   // deg, rectilinear source
 const OUT_FOV = 140;   // deg, fisheye output diagonal-ish field of view
@@ -32,6 +35,19 @@ export class EndoRenderer {
     this.fill.position.set(0, 0.25, -0.3);
     this.camera.add(this.fill);
     this.scene.add(new THREE.AmbientLight(0x401010, 0.02));
+    // video processor settings: light source output and auto-exposure (AGC)
+    this.lightGain = 1;      // 0.25 .. 3
+    this.autoExposure = true;
+
+    // biopsy forceps (rendered in camera space, so they move with the lens)
+    this.forcepsMesh = buildForcepsMesh();
+    this.camera.add(this.forcepsMesh);
+
+    // biopsy sites painted onto the mucosa in the lumen shader (rest-space positions; w = time of bite)
+    this.siteUniform = { value: Array.from({ length: MAX_SITES }, () => new THREE.Vector4(0, 0, 0, -1)) };
+    this.siteCount = 0;
+    this.gravUniform = { value: new THREE.Vector3(1, 0, 0) };
+    this.timeUniform = { value: 0 };
 
     this.target = new THREE.WebGLRenderTarget(1024, 1024, { type: THREE.HalfFloatType, samples: 4 });
     this.target.texture.colorSpace = THREE.LinearSRGBColorSpace;
@@ -85,12 +101,39 @@ export class EndoRenderer {
       side: THREE.DoubleSide,
     });
     const infl = this.inflateUniform;
+    const sites = this.siteUniform, grav = this.gravUniform, tUni = this.timeUniform;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uInflate = infl;
+      sh.uniforms.uSites = sites;
+      sh.uniforms.uGrav = grav;
+      sh.uniforms.uTime = tUni;
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          uniform vec4 uSites[${MAX_SITES}]; uniform vec3 uGrav; uniform float uTime; varying vec3 vRest;`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          for (int i = 0; i < ${MAX_SITES}; i++) {
+            vec4 st = uSites[i];
+            if (st.w < 0.0) continue;
+            vec3 q = vRest - st.xyz;
+            float d = length(q);
+            if (d > 1.2) continue;
+            float age = max(0.0, uTime - st.w);
+            float crater = 1.0 - smoothstep(0.06, 0.10, d);
+            float halo = (1.0 - smoothstep(0.09, 0.24, d)) * (1.0 - 0.5 * smoothstep(20.0, 90.0, age));
+            // a thin ooze of blood running toward the dependent side
+            float along = dot(q, uGrav);
+            float perp = length(q - along * uGrav);
+            float len = min(0.9, age * 0.12);
+            float trail = step(0.0, along) * (1.0 - smoothstep(len * 0.8, len + 0.001, along)) * (1.0 - smoothstep(0.025, 0.055, perp));
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.04, 0.03), halo * 0.75);
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.02, 0.02), trail * 0.9);
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.20, 0.02, 0.02), crater);
+          }`);
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
-          attribute vec3 aCenter; attribute float aInflate; attribute float fold; uniform float uInflate;`)
+          attribute vec3 aCenter; attribute float aInflate; attribute float fold; uniform float uInflate; varying vec3 vRest;`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vRest = position;
           {
             vec3 rel = transformed - aCenter;
             float sc = mix(1.0, uInflate, aInflate);
@@ -239,7 +282,14 @@ export class EndoRenderer {
     else { this.shaftMesh = new THREE.Mesh(g, this.shaftMat); this.scene.add(this.shaftMesh); }
   }
 
-  render(scope, time) {
+  addBiopsySite(rest, time) {
+    const v = this.siteUniform.value[this.siteCount % MAX_SITES];
+    v.set(rest.x, rest.y, rest.z, time);
+    this.siteCount++;
+  }
+  clearBiopsySites() { for (const v of this.siteUniform.value) v.w = -1; this.siteCount = 0; }
+
+  render(scope, time, forceps = null) {
     const cam = this.camera, tip = scope.tip;
     cam.position.copy(tip.pos);
     cam.up.copy(tip.up);
@@ -250,7 +300,11 @@ export class EndoRenderer {
     const near = Math.min(scope.wallGap ?? 1, (scope.wallAhead ?? 3) * 0.5);
     const want = 0.5 + 0.65 * THREE.MathUtils.smoothstep(near, 0.0, 1.4);
     this.exposure = (this.exposure ?? want) + (want - (this.exposure ?? want)) * 0.12;
-    this.r.toneMappingExposure = this.exposure;
+    this.r.toneMappingExposure = this.autoExposure ? this.exposure : 1.0;
+    this.light.intensity = 2.6 * this.lightGain;
+    this.fill.intensity = 0.5 * this.lightGain;
+    this.timeUniform.value = time;
+    if (forceps) updateForcepsMesh(this.forcepsMesh, forceps, scope); else this.forcepsMesh.visible = false;
     this.updateShaft(scope);
 
     const r = this.r;
