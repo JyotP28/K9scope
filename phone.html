@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#14181b">
+<title>K9 Scope · Control section</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="css/phone.css">
+<script src="vendor/peerjs.min.js"></script>
+</head>
+<body>
+<div id="body">
+  <div id="topbar">
+    <span id="conn" class="pill wait">connecting…</span>
+    <span id="rtt"></span>
+    <button id="gear" aria-label="Settings">⚙</button>
+  </div>
+
+  <div id="valves">
+    <div class="valve" id="vAir"><div class="cap"></div><span class="lbl">AIR / WATER</span><span class="sub">hold = air · slide ↓ = water</span></div>
+    <div class="valve red" id="vSuc"><div class="cap"></div><span class="lbl">SUCTION</span><span class="sub">hold</span></div>
+  </div>
+
+  <div id="readout">
+    <div><label>UP / DOWN</label><b id="rUD">0°</b><div class="gauge"><i id="gUD"></i></div></div>
+    <div><label>TORQUE</label><b id="rTq">0°</b><div class="gauge"><i id="gTq"></i></div></div>
+    <div><label>RIGHT / LEFT</label><b id="rLR">0°</b><div class="gauge"><i id="gLR"></i></div></div>
+  </div>
+
+  <div id="dialWrap">
+    <svg id="dial" viewBox="-200 -200 400 400"></svg>
+    <button class="lock" id="lockLR"><span>R/L</span><b>🔓</b></button>
+    <button class="lock" id="lockUD"><span>U/D</span><b>🔓</b></button>
+  </div>
+
+  <div id="torqueStrip" class="hidden"><span>No gyroscope - drag here for torque</span><i id="tsKnob"></i></div>
+
+  <div id="bottom">
+    <button id="btnStraight">Release / straighten tip</button>
+    <button id="btnZero">Zero torque</button>
+  </div>
+</div>
+
+<div id="start" class="overlay">
+  <div class="panel">
+    <h1>K9 SCOPE</h1>
+    <p>Control section</p>
+    <p class="hint">Hold the phone upright in your <b>left hand</b>. Turn the dials with circular thumb swipes. Rotate the whole phone about its long axis to torque the insertion tube.</p>
+    <button id="btnStart">Tap to start</button>
+    <p class="hint" id="startNote"></p>
+  </div>
+</div>
+
+<div id="settings" class="overlay hidden">
+  <div class="panel">
+    <h2>Controller settings</h2>
+    <label><input type="checkbox" id="sInvUD"> Invert up/down dial</label>
+    <label><input type="checkbox" id="sInvLR"> Invert right/left ring</label>
+    <label><input type="checkbox" id="sInvTq"> Invert torque</label>
+    <label>Torque axis
+      <select id="sAxis"><option value="long">Twist about long axis (realistic)</option><option value="screen">Steering-wheel (screen normal)</option></select>
+    </label>
+    <label><input type="checkbox" id="sHaptic" checked> Haptic ticks (Android)</label>
+    <button id="btnReconnect">Reconnect</button>
+    <button id="btnClose">Done</button>
+  </div>
+</div>
+
+<script type="module" src="js/phone/controller.js"></script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K9 Scope Sim</title>
+<link rel="stylesheet" href="css/sim.css">
+<link rel="icon" href="data:,">
+<script src="vendor/peerjs.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<aside id="tower">
+  <header>
+    <div class="brand">K9 SCOPE <span>SIM</span></div>
+    <div class="sub">Canine upper GI · trainer v0.1</div>
+  </header>
+
+  <section id="pairCard" class="card">
+    <div class="row between">
+      <h3>Controller</h3>
+      <span id="connPill" class="pill wait">starting…</span>
+    </div>
+    <div id="qrWrap">
+      <div id="qr"></div>
+      <div class="hint">Scan with your phone camera.<br>Room <b id="roomId">-</b> · <a id="phoneLink" target="_blank">open link</a></div>
+    </div>
+    <div id="connDetail" class="hint"></div>
+  </section>
+
+  <section class="card">
+    <div class="row between"><h3>Task</h3><span id="taskState" class="pill">ready</span></div>
+    <ol id="checklist"></ol>
+  </section>
+
+  <section class="card metrics">
+    <div class="metric"><label>Time</label><b id="mTime">0:00</b></div>
+    <div class="metric"><label>Insertion</label><b id="mDepth">0 cm</b></div>
+    <div class="metric"><label>Contacts</label><b id="mContacts">0</b></div>
+    <div class="metric"><label>Region</label><b id="mRegion">-</b></div>
+    <div class="bar"><label>Insufflation</label><div class="track"><div id="mInfl"></div><i></i></div></div>
+    <div class="row small"><span>Tip <b id="mTip">U 0° · R 0°</b></span><span>Torque <b id="mTorque">0°</b></span></div>
+    <div class="row small"><span>Input <b id="mSource">-</b></span><span id="valves"><i id="vAir">AIR</i><i id="vWater">H₂O</i><i id="vSuc">SUC</i></span></div>
+  </section>
+
+  <div class="buttons">
+    <button id="btnHelp">Controls</button>
+    <button id="btnSettings">Settings</button>
+    <button id="btnRestart">Restart</button>
+  </div>
+  <div class="guideLabel">Scope guide</div>
+</aside>
+
+<div id="warn" class="hidden">WALL CONTACT</div>
+<div id="msg" class="hidden"></div>
+<div id="toast"></div>
+<div id="osd"><span id="osdId">K9-SIM</span><span id="osdTime"></span></div>
+
+<div id="loading" class="modal"><div class="panel"><h2>Building anatomy…</h2><p class="hint" id="loadMsg"></p></div></div>
+
+<div id="helpModal" class="modal hidden"><div class="panel">
+  <h2>Controls</h2>
+  <div class="cols">
+    <div>
+      <h4>Phone (left hand)</h4>
+      <ul>
+        <li><b>Inner wheel</b> – circular thumb swipe: tip <b>up / down</b></li>
+        <li><b>Outer ring</b> – tip <b>left / right</b></li>
+        <li>Dials hold position; <b>lock</b> toggles freeze them</li>
+        <li><b>Rotate the phone</b> about its long axis = torque</li>
+        <li><b>AIR/WATER</b> (blue): hold = air, slide thumb down while holding = water (lens wash)</li>
+        <li><b>SUCTION</b> (red): hold</li>
+      </ul>
+      <h4>Right hand</h4>
+      <ul><li><b>Scroll / two-finger swipe</b> = advance / withdraw the insertion tube</li></ul>
+    </div>
+    <div>
+      <h4>Keyboard fallback</h4>
+      <ul>
+        <li><kbd>↑</kbd><kbd>↓</kbd> tip up/down · <kbd>←</kbd><kbd>→</kbd> left/right</li>
+        <li><kbd>Q</kbd><kbd>E</kbd> torque · <kbd>W</kbd><kbd>S</kbd> advance/withdraw</li>
+        <li><kbd>Space</kbd> air · <kbd>R</kbd> water · <kbd>X</kbd> suction</li>
+        <li><kbd>Z</kbd> straighten tip · <kbd>G</kbd> scope guide · <kbd>H</kbd> this help</li>
+      </ul>
+      <h4>Task</h4>
+      <p>Advance esophagus → stomach → through the pylorus → descending duodenum. Insufflate the stomach to see; avoid wall contact (red-out). To pass the pylorus, aim the tip into the canal first. Bonus: retroflex (full up, ~180°) in the stomach to view the cardia.</p>
+    </div>
+  </div>
+  <button class="close">Close</button>
+</div></div>
+
+<div id="settingsModal" class="modal hidden"><div class="panel">
+  <h2>Settings</h2>
+  <label class="set"><input type="checkbox" id="sInvertWheel"> Invert scroll direction (advance/withdraw)</label>
+  <label class="set">Scroll sensitivity <input type="range" id="sWheelSens" min="0.3" max="4" step="0.1"> <span id="sWheelSensV"></span></label>
+  <label class="set"><input type="checkbox" id="sInvertTorque"> Invert torque</label>
+  <label class="set"><input type="checkbox" id="sGuide"> Show scope guide</label>
+  <hr>
+  <h4>Anatomy</h4>
+  <div class="row wrap">
+    <button id="btnNewPatient">New random patient</button>
+    <button id="btnExport">Export model (.glb + .json)</button>
+    <label class="filebtn">Load model…<input type="file" id="fileModel" accept=".glb,.gltf,.json" multiple hidden></label>
+  </div>
+  <p class="hint" id="modelName"></p>
+  <button class="close">Close</button>
+</div></div>
+
+<div id="resultModal" class="modal hidden"><div class="panel">
+  <h2>Procedure complete</h2>
+  <div id="resultBody"></div>
+  <div class="row"><button id="btnAgain">Try again</button><button class="close">Close</button></div>
+</div></div>
+
+<script type="module" src="js/sim/main.js"></script>
+</body>
+</html>
